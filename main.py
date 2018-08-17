@@ -61,7 +61,7 @@ def train(epoch, opt):
             end = time.time()
             tmp_losses = tmp_losses / opt.display_interval
             print("step {}/{} (epoch {}), loss: {:f} , lr:{:f}, time/batch = {:.3f}" \
-                .format(batch_idx, max_batch_size, epoch, tmp_losses, optimizer.param_groups[-1]['lr'], end - start))
+                .format(batch_idx, len(train_loader), epoch, tmp_losses, optimizer.param_groups[-1]['lr'], end - start))
 
             start = time.time()
             tmp_losses = 0

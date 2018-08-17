@@ -7,7 +7,7 @@ imdbval_name: 'coco_2014_minival'
 # general setting:
 batch_size: 64
 max_epochs: 60
-num_workers: 0
+num_workers: 10
 
 save_interval: 5
 save_path: save/

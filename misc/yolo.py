@@ -26,12 +26,12 @@ class YOLOv3(nn.Module):
         #  embedding1
         final_out_filter1 = 3 * (5 + opt.classes)
         self.embedding1_cbl = self._make_cbl(512, 256, 1)
-        self.embedding1_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        # self.embedding1_upsample = nn.Upsample(scale_factor=2, mode='nearest')
         self.embedding1 = self._make_embedding([256, 512], _out_filters[-2] + 256, final_out_filter1)
         #  embedding2
         final_out_filter2 = 3 * (5 + opt.classes)
         self.embedding2_cbl = self._make_cbl(256, 128, 1)
-        self.embedding2_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        # self.embedding2_upsample = nn.Upsample(scale_factor=2, mode='nearest')
         self.embedding2 = self._make_embedding([128, 256], _out_filters[-3] + 128, final_out_filter2)
 
         self.anchors = np.array(opt.anchors)
@@ -82,12 +82,13 @@ class YOLOv3(nn.Module):
         out0, out0_branch = self._branch(self.embedding0, x0)
         #  yolo branch 1
         x1_in = self.embedding1_cbl(out0_branch)
-        x1_in = self.embedding1_upsample(x1_in)
+        x1_in = F.interpolate(x1_in, scale_factor=2, mode='nearest')
         x1_in = torch.cat([x1_in, x1], 1)
         out1, out1_branch = self._branch(self.embedding1, x1_in)
         #  yolo branch 2
         x2_in = self.embedding2_cbl(out1_branch)
-        x2_in = self.embedding2_upsample(x2_in)
+        # x2_in = self.embedding2_upsample(x2_in)
+        x2_in = F.interpolate(x2_in, scale_factor=2, mode='nearest')
         x2_in = torch.cat([x2_in, x2], 1)
         out2, out2_branch = self._branch(self.embedding2, x2_in)
 
@@ -282,7 +283,7 @@ class yolo_loss(nn.Module):
         self.num_classes = opt.classes
         self.ignore_thresh = 0.5
 
-        self.mse_loss = nn.MSELoss(size_average=False)
+        self.mse_loss = nn.MSELoss(reduction='sum')
 
     def forward(self, yolo_outputs, y_true):
         
@@ -319,7 +320,6 @@ class yolo_loss(nn.Module):
                 iou = box_iou(pred_box[b], true_box)
                 best_iou, _ = torch.max(iou, dim=3)
                 best_ious.append(best_iou)
-                # pdb.set_trace()
             
             best_ious = torch.stack(best_ious, dim=0).unsqueeze(4)
             ignore_mask = (best_ious < self.ignore_thresh).float()
