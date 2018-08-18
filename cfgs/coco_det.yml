@@ -5,7 +5,7 @@ imdb_name: 'coco_2014_train+coco_2014_valminusminival'
 imdbval_name: 'coco_2014_minival'
 
 # general setting:
-batch_size: 64
+batch_size: 80
 max_epochs: 60
 num_workers: 10
 

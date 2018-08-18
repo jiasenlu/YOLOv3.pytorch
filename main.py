@@ -72,7 +72,6 @@ def validation(epoch, opt):
 
     iter_val = iter(eval_loader)
     tmp_losses = 0
-    count = 0
 
     for batch_idx in range(len(iter_val)):
         data = iter_val.next()
@@ -84,11 +83,14 @@ def validation(epoch, opt):
             label2 = label2.cuda()
             label3 = label3.cuda()
 
-        losses = model(img, label1, label2, label3)
+        losses = model(img, label1, label2, label3)        
         loss = utils.add_logger(opt, model, losses, logger, opt.n_iter, 'val')
         tmp_losses = tmp_losses + loss.item()
-            
+    
+    tmp_losses = tmp_losses / len(iter_val)     
+    print("============================================")
     print("Evaluation Loss (epoch {}), TOTAL_LOSS: {:.3f}".format(epoch, tmp_losses))
+    print("============================================")
 
     return tmp_losses
 
@@ -214,7 +216,7 @@ if __name__ == '__main__':
             best_val_loss = val_loss
             best_flag = True
 
-        checkpoint_path = os.path.join(opt.save_path, opt.backbones_type)
+        checkpoint_path = os.path.join(opt.save_path, opt.backbones_network)
         if not os.path.exists(checkpoint_path):
             os.makedirs(checkpoint_path)
 

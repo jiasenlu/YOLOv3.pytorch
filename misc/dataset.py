@@ -54,6 +54,7 @@ class dataset(Dataset):
             gt_boxes[:, 0:4] = minibatch_db['boxes'][gt_inds, :]
             gt_boxes[:, 4] = minibatch_db['gt_classes'][gt_inds] - 1
             img, box = utils.get_random_data(image_path, gt_boxes, self.shape, random=False)
+            
             y_true = utils.preprocess_true_boxes(box[np.newaxis,:], self.shape, np.array(self.opt.anchors), self.opt.classes)
 
         y_true0 = torch.from_numpy(y_true[0].squeeze(0))

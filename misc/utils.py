@@ -67,6 +67,9 @@ def get_random_data(image_path, box, input_shape, random=True, max_boxes=20, jit
             if len(box)>max_boxes: box = box[:max_boxes]
             box[:, [0,2]] = box[:, [0,2]]*scale + dx
             box[:, [1,3]] = box[:, [1,3]]*scale + dy
+            box_w = box[:, 2] - box[:, 0]
+            box_h = box[:, 3] - box[:, 1]
+            box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
             box_data[:len(box)] = box
 
         return image_data, box_data
@@ -120,6 +123,7 @@ def get_random_data(image_path, box, input_shape, random=True, max_boxes=20, jit
         box_w = box[:, 2] - box[:, 0]
         box_h = box[:, 3] - box[:, 1]
         box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
+
         if len(box)>max_boxes: box = box[:max_boxes]
         box_data[:len(box)] = box
 
@@ -202,7 +206,6 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
     y_true: list of array, shape like yolo_outputs, xywh are reletive value
 
     '''
-
     assert (true_boxes[..., 4]<num_classes).all(), 'class id must be less than num_classes'
     num_layers = len(anchors)//3 # default setting
     anchor_mask = [[6,7,8], [3,4,5], [0,1,2]] if num_layers==3 else [[3,4,5], [1,2,3]]
@@ -223,7 +226,8 @@ def preprocess_true_boxes(true_boxes, input_shape, anchors, num_classes):
     anchors = np.expand_dims(anchors, 0)
     anchor_maxes = anchors / 2.
     anchor_mins = -anchor_maxes
-    valid_mask = boxes_wh[..., 0]>0
+
+    valid_mask = np.bitwise_and(boxes_wh[..., 0]>0, boxes_wh[..., 1]>0)
 
     for b in range(m):
         # Discard zero rows.

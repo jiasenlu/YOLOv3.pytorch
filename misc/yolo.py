@@ -344,7 +344,6 @@ class yolo_loss(nn.Module):
             nProposal += torch.sum(torch.sigmoid(raw_pred[...,4:5]) > 0.25)
 
         loss = loss_xy + loss_wh + loss_conf + loss_clss
-
         # print('loss %.3f, xy %.3f, wh %.3f, conf %.3f, class_loss: %.3f, nRecall: %d, nRecall75: %d, nProposal: %d' \
                 # %(loss.item(), xy_loss.item(), wh_loss.item(), confidence_loss.item(), class_loss.item(), nRecall.item(), nRecall75.item(), nProposal.item()))
 

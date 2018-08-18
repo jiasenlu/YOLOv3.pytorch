@@ -92,4 +92,7 @@ def combined_roidb(imdb_names, training=True):
   else:
     imdb = get_imdb(imdb_names)
 
+  if training:
+    roidb = filter_roidb(roidb)
+
   return imdb, roidb
