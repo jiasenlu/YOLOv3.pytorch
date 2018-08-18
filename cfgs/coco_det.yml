@@ -5,7 +5,7 @@ imdb_name: 'coco_2014_train+coco_2014_valminusminival'
 imdbval_name: 'coco_2014_minival'
 
 # general setting:
-batch_size: 80
+batch_size: 64
 max_epochs: 60
 num_workers: 10
 
@@ -32,7 +32,7 @@ scales: [0.1, 10, 0.1, 0.1]
 use_cuda: True
 n_iter: 0
 start_epoch: 0
-start_from: ""
+start_from: "save/darknet53"
 load_best_score: 0
 display_interval: 20
 seen: 0

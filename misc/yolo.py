@@ -5,8 +5,10 @@ import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from backbones import backbone_fn 
+from backbones import backbone_fn
 from collections import OrderedDict
+from misc.nms.nms_wrapper import nms
+
 import pdb
 
 class YOLOv3(nn.Module):
@@ -97,7 +99,7 @@ class YOLOv3(nn.Module):
         return loss
 
 
-    def detect(self, x2, x1, x0, image_shape):
+    def detect(self, img):
 
         with torch.no_grad():
             x2, x1, x0 = self.backbone(img)
@@ -105,15 +107,16 @@ class YOLOv3(nn.Module):
             out0, out0_branch = self._branch(self.embedding0, x0)
             #  yolo branch 1
             x1_in = self.embedding1_cbl(out0_branch)
-            x1_in = self.embedding1_upsample(x1_in)
+            x1_in = F.interpolate(x1_in, scale_factor=2, mode='nearest')
             x1_in = torch.cat([x1_in, x1], 1)
             out1, out1_branch = self._branch(self.embedding1, x1_in)
             #  yolo branch 2
             x2_in = self.embedding2_cbl(out1_branch)
-            x2_in = self.embedding2_upsample(x2_in)
+            x2_in = F.interpolate(x2_in, scale_factor=2, mode='nearest')
             x2_in = torch.cat([x2_in, x2], 1)
             out2, out2_branch = self._branch(self.embedding2, x2_in)
 
+        image_shape = torch.Tensor([img.size(2), img.size(3)]).type_as(img)
         boxes_, scores_, classes_  = yolo_eval((out0, out1, out2), self.anchors, self.num_classes, image_shape)
 
         return boxes_, scores_, classes_
@@ -129,8 +132,7 @@ def yolo_boxes_and_scores(feats, anchors, num_classes, input_shape, image_shape)
 
     box_scores = box_confidence * box_class_probs
     box_scores = box_scores.view(-1, num_classes)
-    
-    return boxes, box_scores
+    return boxes.view(feats.size(0), -1,4), box_scores.view(feats.size(0), -1,num_classes)
 
 def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape):
     '''Get corrected boxes'''
@@ -163,7 +165,8 @@ def yolo_eval(yolo_outputs,
               image_shape,
               max_boxes=20,
               score_threshold=.5,
-              iou_threshold=.5):
+              iou_threshold=.5,
+              nms_threshold=.3):
     """Evaluate YOLO model on given input and return filtered boxes."""
     num_layers = len(yolo_outputs)
     anchor_mask = [[6,7,8], [3,4,5], [0,1,2]] if num_layers==3 else [[3,4,5], [1,2,3]] # default setting
@@ -176,28 +179,37 @@ def yolo_eval(yolo_outputs,
         boxes.append(_boxes)
         box_scores.append(_box_scores)
 
-    boxes = torch.cat(boxes, dim=0)
-    box_scores = torch.cat(box_scores, dim=0)
+    boxes = torch.cat(boxes, dim=1)
+    box_scores = torch.cat(box_scores, dim=1)
 
-    mask = box_scores >= score_threshold
-    boxes_ = []
-    scores_ = []
+    dets_ = []
     classes_ = []
-    for c in range(num_classes):
-        class_boxes = boxes[mask[:,c]]
-        class_box_scores = box_scores[:,c][mask[:,c]]
-        
-        # do nms here.
-        boxes_.append(class_boxes)
-        scores_.append(class_box_scores)
-        classes_.append(torch.ones(class_box_scores.size()) * c)
-        
-    boxes_ = torch.cat(boxes_, dim=0)
-    scores_ = torch.cat(scores_, dim=0)
+    images_ = []
+    for i in range(boxes.size(0)):
+        mask = box_scores[i] >= score_threshold
+        for c in range(num_classes):
+            class_boxes = boxes[i][mask[:,c]]
+            if len(class_boxes) == 0:
+                continue
+
+            class_box_scores = box_scores[i][:,c][mask[:,c]]
+            _, order = torch.sort(class_box_scores, 0, True)
+            # do nms here.
+            cls_dets =  torch.cat((class_boxes, class_box_scores.view(-1,1)), 1)
+            cls_dets = cls_dets[order]
+
+            keep = nms(cls_dets, nms_threshold)
+            cls_dets = cls_dets[keep.view(-1).long()]
+
+            dets_.append(cls_dets)
+            classes_.append(torch.ones(class_box_scores.size()) * c)
+            images_.append(torch.ones(class_box_scores.size()) * i)
+
+    dets_ = torch.cat(dets_, dim=0)
+    images_ = torch.cat(images_, dim=0)
     classes_ = torch.cat(classes_, dim=0)
-
-    return boxes_, scores_, classes_        
-
+    
+    return dets_, images_, classes_
 
 def box_iou(b1, b2):
     '''Return iou tensor

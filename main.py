@@ -94,6 +94,21 @@ def validation(epoch, opt):
 
     return tmp_losses
 
+def evaluate(opt):
+    torch.set_grad_enabled(False)
+    model.eval()
+    iter_val = iter(eval_loader)
+
+    for batch_idx in range(len(iter_val)):
+        data = iter_val.next()
+        img, label1, label2, label3, image_id = data
+        if opt.use_cuda:
+            img = img.cuda()
+
+        dets_, images_, classes_ = model.detect(img)
+        
+        pdb.set_trace()
+
 def _get_optimizer(opt, net):
 
     params = []
@@ -205,6 +220,8 @@ if __name__ == '__main__':
         else:
             model = model.cuda()
 
+    evaluate(opt)
+    
     for epoch in range(start_epoch, opt.max_epochs):
 
         train(epoch, opt)

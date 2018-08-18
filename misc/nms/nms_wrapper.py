@@ -5,8 +5,7 @@
 # Written by Ross Girshick
 # --------------------------------------------------------
 import torch
-from model.utils.config import cfg
-from model.nms.nms_gpu import nms_gpu
+from misc.nms.nms_gpu import nms_gpu
 
 def nms(dets, thresh, force_cpu=False):
     """Dispatch to either CPU or GPU NMS implementations."""
