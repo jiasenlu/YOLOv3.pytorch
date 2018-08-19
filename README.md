@@ -43,7 +43,7 @@ We use converted pytorch pretrained model, you can place the pretrained model un
 - Darknet53: [GoogleDrive](https://drive.google.com/open?id=1VYwHUznM3jLD7ftmOSCHnpkVpBJcFIOA)
 - Resnet101:
 - Resnet50:
-- MobelNet: 
+- MobelNet:
 
 ### Compilation
 Compile the cuda dependencies using following simple commands:
@@ -54,11 +54,13 @@ sh make.sh
 
 ## Train
 ```
- python main.py 
+ python main.py
 ```
 ## Test
 
+
 ## Demo
+
 
 ## Citation
 ```
@@ -69,4 +71,3 @@ sh make.sh
   year={2018}
 }
 ```
-

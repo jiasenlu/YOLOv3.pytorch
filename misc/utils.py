@@ -44,7 +44,7 @@ def get_random_data(image_path, box, input_shape, random=True, max_boxes=20, jit
     '''random preprocessing for real-time data augmentation'''
     image = Image.open(image_path)
     iw, ih = image.size
-    h, w = input_shape
+    w, h = input_shape
 
     if not random:
         # resize image
@@ -72,7 +72,7 @@ def get_random_data(image_path, box, input_shape, random=True, max_boxes=20, jit
             box = box[np.logical_and(box_w>1, box_h>1)] # discard invalid box
             box_data[:len(box)] = box
 
-        return image_data, box_data
+        return image_data, box_data, iw, ih
 
     # resize image
     new_ar = w/h * rand(1-jitter,1+jitter)/rand(1-jitter,1+jitter)
@@ -127,7 +127,7 @@ def get_random_data(image_path, box, input_shape, random=True, max_boxes=20, jit
         if len(box)>max_boxes: box = box[:max_boxes]
         box_data[:len(box)] = box
 
-    return image_data, box_data
+    return image_data, box_data, iw, ih
 
 def get_random_img(image_path, input_shape, random=True, max_boxes=20, jitter=.3, hue=.1, sat=1.5, val=1.5, proc_img=True):
     '''random preprocessing for real-time data augmentation'''

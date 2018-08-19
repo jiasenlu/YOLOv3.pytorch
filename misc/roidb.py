@@ -16,7 +16,6 @@ def prepare_roidb(imdb):
   each ground-truth box. The class with maximum overlap is also
   recorded.
   """
-
   roidb = imdb.roidb
   if not (imdb.name.startswith('coco')):
     sizes = [PIL.Image.open(imdb.image_path_at(i)).size

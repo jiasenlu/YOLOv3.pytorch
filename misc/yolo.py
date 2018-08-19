@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from backbones import backbone_fn
 from collections import OrderedDict
 from misc.nms.nms_wrapper import nms
-
 import pdb
 
 class YOLOv3(nn.Module):
@@ -99,7 +98,7 @@ class YOLOv3(nn.Module):
         return loss
 
 
-    def detect(self, img):
+    def detect(self, img, ori_shape):
 
         with torch.no_grad():
             x2, x1, x0 = self.backbone(img)
@@ -117,7 +116,7 @@ class YOLOv3(nn.Module):
             out2, out2_branch = self._branch(self.embedding2, x2_in)
 
         image_shape = torch.Tensor([img.size(2), img.size(3)]).type_as(img)
-        boxes_, scores_, classes_  = yolo_eval((out0, out1, out2), self.anchors, self.num_classes, image_shape)
+        boxes_, scores_, classes_  = yolo_eval((out0, out1, out2), self.anchors, self.num_classes, image_shape, ori_shape)
 
         return boxes_, scores_, classes_
 
@@ -163,16 +162,18 @@ def yolo_eval(yolo_outputs,
               anchors,
               num_classes,
               image_shape,
+              ori_shape,
               max_boxes=20,
               score_threshold=.5,
               iou_threshold=.5,
               nms_threshold=.3):
     """Evaluate YOLO model on given input and return filtered boxes."""
     num_layers = len(yolo_outputs)
+    max_per_image = 100
     anchor_mask = [[6,7,8], [3,4,5], [0,1,2]] if num_layers==3 else [[3,4,5], [1,2,3]] # default setting
     input_shape = torch.Tensor([yolo_outputs[0].shape[2] * 32, yolo_outputs[0].shape[3] * 32]).type_as(yolo_outputs[0]) 
     boxes = []
-    box_scores = []        
+    box_scores = []
     for l in range(num_layers):
         _boxes, _box_scores = yolo_boxes_and_scores(yolo_outputs[l],
             anchors[anchor_mask[l]], num_classes, input_shape, image_shape)        
@@ -187,6 +188,10 @@ def yolo_eval(yolo_outputs,
     images_ = []
     for i in range(boxes.size(0)):
         mask = box_scores[i] >= score_threshold
+        img_dets = []
+        img_classes = []
+        img_images = []
+
         for c in range(num_classes):
             class_boxes = boxes[i][mask[:,c]]
             if len(class_boxes) == 0:
@@ -201,14 +206,47 @@ def yolo_eval(yolo_outputs,
             keep = nms(cls_dets, nms_threshold)
             cls_dets = cls_dets[keep.view(-1).long()]
 
-            dets_.append(cls_dets)
-            classes_.append(torch.ones(class_box_scores.size()) * c)
-            images_.append(torch.ones(class_box_scores.size()) * i)
+            img_dets.append(cls_dets)
+            img_classes.append(torch.ones(cls_dets.size(0)) * c)
+            img_images.append(torch.ones(cls_dets.size(0)) * i)
+
+        # Limit to max_per_image detections *over all classes*
+        if len(img_dets) > 0:
+            img_dets = torch.cat(img_dets, dim=0)
+            img_classes = torch.cat(img_classes, dim=0)
+            img_images = torch.cat(img_images, dim=0)
+
+            if max_per_image > 0:
+                if img_dets.size(0) > max_per_image:
+                    _, order = torch.sort(img_dets[:,4], 0, True)
+                    keep = order[:max_per_image]
+                    img_dets = img_dets[keep]
+                    img_classes = img_classes[keep]
+                    img_images = img_images[keep]
+
+            # conver the bounding box back.
+            w, h = image_shape[0].item(), image_shape[1].item()
+            iw, ih = ori_shape[i][0].item(), ori_shape[i][1].item()
+
+            scale = min(w/iw, h/ih)
+            nw = int(iw*scale)
+            nh = int(ih*scale)            
+            
+            dx = (w-nw)//2
+            dy = (h-nh)//2            
+
+            img_dets[:, [0,2]] = (img_dets[:, [0,2]] - dx) / scale
+            img_dets[:, [1,3]] = (img_dets[:, [1,3]] - dy) / scale
+
+            dets_.append(img_dets)
+            classes_.append(img_classes)
+            images_.append(img_images)
+
 
     dets_ = torch.cat(dets_, dim=0)
     images_ = torch.cat(images_, dim=0)
     classes_ = torch.cat(classes_, dim=0)
-    
+
     return dets_, images_, classes_
 
 def box_iou(b1, b2):

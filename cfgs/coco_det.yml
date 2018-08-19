@@ -9,6 +9,7 @@ batch_size: 64
 max_epochs: 60
 num_workers: 10
 
+output_dir: outputs/
 save_interval: 5
 save_path: save/
 dir_logs: logs/

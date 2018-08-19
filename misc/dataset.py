@@ -46,14 +46,14 @@ class dataset(Dataset):
             gt_boxes[:, 0:4] = minibatch_db['boxes'][gt_inds, :]
             gt_boxes[:, 4] = minibatch_db['gt_classes'][gt_inds] - 1
 
-            img, box = utils.get_random_data(image_path, gt_boxes, self.shape, random=True)
+            img, box, iw, ih = utils.get_random_data(image_path, gt_boxes, self.shape, random=True)
             y_true = utils.preprocess_true_boxes(box[np.newaxis,:], self.shape, np.array(self.opt.anchors), self.opt.classes)
         else:
             gt_inds = np.where(minibatch_db['gt_classes'] != 0)[0]
             gt_boxes = np.empty((len(gt_inds), 5), dtype=np.float32)
             gt_boxes[:, 0:4] = minibatch_db['boxes'][gt_inds, :]
             gt_boxes[:, 4] = minibatch_db['gt_classes'][gt_inds] - 1
-            img, box = utils.get_random_data(image_path, gt_boxes, self.shape, random=False)
+            img, box, iw, ih = utils.get_random_data(image_path, gt_boxes, self.shape, random=False)
             
             y_true = utils.preprocess_true_boxes(box[np.newaxis,:], self.shape, np.array(self.opt.anchors), self.opt.classes)
 
@@ -61,7 +61,8 @@ class dataset(Dataset):
         y_true1 = torch.from_numpy(y_true[1].squeeze(0))
         y_true2 = torch.from_numpy(y_true[2].squeeze(0))
 
+        y_shape = torch.Tensor([iw, ih])
         if self.transform:
             img = self.transform(img).float()
         
-        return (img, y_true0, y_true1, y_true2, image_id)
+        return (img, y_true0, y_true1, y_true2, image_id, y_shape)

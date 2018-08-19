@@ -11,6 +11,7 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
 from six.moves import cPickle
 from pprint import pprint
+import numpy as np
 
 import random
 import math
@@ -39,7 +40,7 @@ def train(epoch, opt):
         opt.seen = opt.seen + opt.batch_size
         t0 = time.time()
         data = iter_train.next()
-        img, label1, label2, label3, image_id = data
+        img, label1, label2, label3, image_id, shape = data
         
         if opt.use_cuda:
             img = img.cuda()
@@ -75,7 +76,7 @@ def validation(epoch, opt):
 
     for batch_idx in range(len(iter_val)):
         data = iter_val.next()
-        img, label1, label2, label3, image_id = data
+        img, label1, label2, label3, image_id, shape = data
 
         if opt.use_cuda:
             img = img.cuda()
@@ -99,15 +100,53 @@ def evaluate(opt):
     model.eval()
     iter_val = iter(eval_loader)
 
-    for batch_idx in range(len(iter_val)):
+    all_boxes = [[[] for _ in range(len(eval_dataset))] for _ in range(opt.classes)]
+    max_batch = len(iter_val)
+    empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
+
+    for batch_idx in range(max_batch):
+
+        det_tic = time.time()
         data = iter_val.next()
-        img, label1, label2, label3, image_id = data
+        img, label1, label2, label3, image_id, ori_shape = data
         if opt.use_cuda:
             img = img.cuda()
 
-        dets_, images_, classes_ = model.detect(img)
-        
-        pdb.set_trace()
+        dets_, images_, classes_ = model.detect(img, ori_shape)
+
+        dets_np = dets_.cpu().numpy()
+        images_np = images_.cpu().numpy()
+        classes_np = classes_.cpu().numpy()
+
+        for i in range(images_.size(0)):
+            idx_ = batch_idx * opt.batch_size + images_np[i]
+            class_ = classes_np[i]
+            box = dets_np[i]
+            # convert the bounding box back
+
+            all_boxes[int(class_)][int(idx_)].append(dets_np[i]) 
+
+        det_toc = time.time()
+        detect_time = (det_toc - det_tic) / opt.batch_size
+        sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s \r' \
+                            .format(batch_idx+1, max_batch, detect_time))
+        sys.stdout.flush()        
+    
+    for i in range(len(all_boxes)):
+        for j in range(len(all_boxes[i])):
+            if len(all_boxes[i][j]) == 0:
+                all_boxes[i][j] = empty_array
+            else:
+                all_boxes[i][j] = np.stack(all_boxes[0][2], 0)
+
+    det_file = os.path.join(opt.output_dir, 'detections.pkl')
+
+    with open(det_file, 'wb') as f:
+        cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)    
+
+    print('Evaluating detections')
+    imdb_val.evaluate_detections(all_boxes, opt.output_dir)
+
 
 def _get_optimizer(opt, net):
 
@@ -151,7 +190,6 @@ if __name__ == '__main__':
         utils.update_values(options_yaml, vars(opt))
 
     print(opt)
-
     log_name = str(datetime.datetime.now()) + '_' + '_' + 'bs:' + str(opt.batch_size)
     # log_name = 'test'
     print("logging to %s ..." %(log_name))
@@ -172,13 +210,14 @@ if __name__ == '__main__':
     
     imdb, roidb = combined_roidb(opt.imdb_name)
     imdb_val, roidb_val = combined_roidb(opt.imdbval_name, training=False)
+    imdb_val.competition_mode(on=True)
 
     kwargs = {'num_workers': opt.num_workers, 'pin_memory': True} if opt.use_cuda else {}       
     train_dataset = dataset.dataset(opt, roidb, transform=transforms.Compose([
                                         transforms.ToTensor(),]
                                         ), split='train')
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True,
-                                    batch_size=opt.batch_size, **kwargs)  
+                                    batch_size=opt.batch_size, **kwargs)
     
     eval_dataset = dataset.dataset(opt, roidb_val, transform=transforms.Compose([
                                         transforms.ToTensor(),]
@@ -220,10 +259,7 @@ if __name__ == '__main__':
         else:
             model = model.cuda()
 
-    evaluate(opt)
-    
     for epoch in range(start_epoch, opt.max_epochs):
-
         train(epoch, opt)
         val_loss = validation(epoch, opt)
         scheduler.step()
@@ -243,7 +279,6 @@ if __name__ == '__main__':
             torch.save(model.state_dict(), os.path.join(checkpoint_path, 'model.pth'))
 
         print("model saved to {}".format(checkpoint_path))
-
         infos['n_iter'] = opt.n_iter
         infos['epoch'] = epoch
         infos['best_val_loss'] = best_val_loss
