@@ -100,7 +100,7 @@ def evaluate(opt):
     model.eval()
     iter_val = iter(eval_loader)
 
-    all_boxes = [[[] for _ in range(len(eval_dataset))] for _ in range(opt.classes)]
+    all_boxes = [[[] for _ in range(len(eval_dataset))] for _ in range(opt.classes+1)]
     max_batch = len(iter_val)
     empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
 
@@ -131,13 +131,13 @@ def evaluate(opt):
         sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s \r' \
                             .format(batch_idx+1, max_batch, detect_time))
         sys.stdout.flush()        
-    
+        
     for i in range(len(all_boxes)):
         for j in range(len(all_boxes[i])):
             if len(all_boxes[i][j]) == 0:
                 all_boxes[i][j] = empty_array
             else:
-                all_boxes[i][j] = np.stack(all_boxes[0][2], 0)
+                all_boxes[i][j] = np.stack(all_boxes[i][j], 0)
 
     det_file = os.path.join(opt.output_dir, 'detections.pkl')
 
@@ -218,7 +218,7 @@ if __name__ == '__main__':
                                         ), split='train')
     train_loader = torch.utils.data.DataLoader(train_dataset, shuffle=True,
                                     batch_size=opt.batch_size, **kwargs)
-    
+
     eval_dataset = dataset.dataset(opt, roidb_val, transform=transforms.Compose([
                                         transforms.ToTensor(),]
                                         ), split='val')
@@ -258,6 +258,9 @@ if __name__ == '__main__':
             model = torch.nn.DataParallel(model).cuda()
         else:
             model = model.cuda()
+
+
+    evaluate(opt)
 
     for epoch in range(start_epoch, opt.max_epochs):
         train(epoch, opt)

@@ -237,6 +237,7 @@ def yolo_eval(yolo_outputs,
 
             img_dets[:, [0,2]] = (img_dets[:, [0,2]] - dx) / scale
             img_dets[:, [1,3]] = (img_dets[:, [1,3]] - dy) / scale
+            img_classes[:] = img_classes[:] + 1 # since the evaluation need to start from 1
 
             dets_.append(img_dets)
             classes_.append(img_classes)
